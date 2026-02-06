@@ -1,0 +1,563 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>F1 小游戏：赛道超车</title>
+  <style>
+    :root { --bg:#070b18; --fg:#eaf0ff; --a:#ff3b3b; --b:#38bdf8; }
+    html,body{height:100%;margin:0}
+    body{
+      display:flex;align-items:center;justify-content:center;background:
+      radial-gradient(900px 500px at 50% 0%, #1b2450 0%, var(--bg) 60%);
+      color:var(--fg);
+      font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Arial;
+      overscroll-behavior:none;
+    }
+    .wrap{width:min(920px, 95vw)}
+    .hud{display:flex;justify-content:space-between;gap:10px;align-items:center;margin:0 0 10px 0;flex-wrap:wrap}
+    .pill{
+      border:1px solid rgba(255,255,255,.16);
+      background:rgba(255,255,255,.06);
+      padding:8px 10px;border-radius:999px;font-size:14px;
+      backdrop-filter: blur(8px);
+    }
+    .left{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    button{
+      border:1px solid rgba(255,255,255,.2);
+      background:rgba(56,189,248,.14);
+      color:var(--fg);padding:8px 12px;border-radius:10px;
+      cursor:pointer;font-weight:700
+    }
+    button:hover{background:rgba(56,189,248,.2)}
+    canvas{
+      width:100%; height:auto; border-radius:16px;
+      background:linear-gradient(#0c1230,#060a16);
+      box-shadow:0 18px 55px rgba(0,0,0,.45);
+      border:1px solid rgba(255,255,255,.14);
+      touch-action:none; /* 防止拖动时页面滚动 */
+    }
+    .tip{margin-top:10px;opacity:.85;font-size:14px;line-height:1.5}
+    .kbd{padding:1px 6px;border-radius:6px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08)}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hud">
+      <div class="left">
+        <div class="pill">分数：<span id="score">0</span></div>
+        <div class="pill">最高分：<span id="best">0</span></div>
+        <div class="pill">速度：<span id="spd">1.0x</span></div>
+        <div class="pill">DRS：<span id="drs">0%</span></div>
+        <div class="pill" id="state">准备开始</div>
+      </div>
+      <div class="right">
+        <button id="restart">重新开始</button>
+      </div>
+    </div>
+
+    <canvas id="c" width="920" height="520"></canvas>
+
+    <div class="tip">
+      电脑：<span class="kbd">←</span><span class="kbd">→</span> 或 <span class="kbd">A</span><span class="kbd">D</span> 移动，<span class="kbd">Space</span> 开始/重开。<br/>
+      手机：在画面上左右拖动赛车。吃到蓝色 <b>DRS</b> 条会加速并加分更多。撞车就结束。
+    </div>
+  </div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+
+  const scoreEl = document.getElementById('score');
+  const bestEl  = document.getElementById('best');
+  const spdEl   = document.getElementById('spd');
+  const drsEl   = document.getElementById('drs');
+  const stateEl = document.getElementById('state');
+  const restartBtn = document.getElementById('restart');
+
+  const W0 = 920, H0 = 520;
+
+  // HiDPI
+  const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+  canvas.style.width = W0 + "px";
+  canvas.style.height = H0 + "px";
+  canvas.width = Math.floor(W0 * dpr);
+  canvas.height = Math.floor(H0 * dpr);
+  ctx.scale(dpr, dpr);
+
+  const W = W0, H = H0;
+
+  const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+  const rand  = (a,b)=>a+Math.random()*(b-a);
+
+  // 赛道参数
+  const road = {
+    x: W*0.5,
+    w: W*0.58,
+    edge: 26,
+    lineGap: 34,
+    lineH: 22,
+    scroll: 0
+  };
+
+  // 本地最高分
+  let best = Number(localStorage.getItem('f1_best') || 0);
+  bestEl.textContent = best;
+
+  // 游戏状态
+  let running = false;
+  let gameOver = false;
+
+  let score = 0;
+  let speed = 6.2;     // 基础滚动速度
+  let difficulty = 1;  // 随时间上升
+  let drs = 0;         // 0..1
+  let drsActive = 0;   // 0..1，用于短时爆发
+
+  // 玩家车
+  const player = {
+    x: road.x,
+    y: H*0.82,
+    w: 34,
+    h: 62,
+    vx: 0,
+    targetX: road.x,
+  };
+
+  // 车流 & 道具
+  let cars = [];
+  let items = [];
+  let particles = [];
+
+  // 输入
+  let left = false, right = false;
+
+  function reset() {
+    running = false;
+    gameOver = false;
+    score = 0;
+    speed = 6.2;
+    difficulty = 1;
+    drs = 0;
+    drsActive = 0;
+
+    player.x = road.x;
+    player.targetX = road.x;
+    player.vx = 0;
+
+    cars = [];
+    items = [];
+    particles = [];
+
+    scoreEl.textContent = "0";
+    spdEl.textContent = "1.0x";
+    drsEl.textContent = "0%";
+    stateEl.textContent = "准备开始（Space/触摸开局）";
+  }
+
+  function start() {
+    if (!running && !gameOver) {
+      running = true;
+      stateEl.textContent = "进行中";
+    }
+  }
+
+  function endGame() {
+    running = false;
+    gameOver = true;
+    stateEl.textContent = "撞车了（Space/重新开始）";
+    if (score > best) {
+      best = score;
+      localStorage.setItem('f1_best', String(best));
+      bestEl.textContent = best;
+    }
+  }
+
+  function spawnCar() {
+    const laneCount = 5;
+    const laneW = road.w / laneCount;
+    const lane = Math.floor(rand(0, laneCount));
+    const x = road.x - road.w/2 + laneW*(lane+0.5);
+
+    const type = Math.random() < 0.22 ? "wide" : "normal";
+    const w = type === "wide" ? 40 : 34;
+    const h = type === "wide" ? 76 : 64;
+
+    const relSpeed = rand(0.35, 1.1) * (0.75 + difficulty*0.08); // 相对玩家的速度差
+    cars.push({
+      x, y: -80,
+      w, h,
+      vy: speed * relSpeed,
+      color: type === "wide" ? "rgba(255,59,59,0.85)" : "rgba(234,240,255,0.82)",
+      passed:false
+    });
+  }
+
+  function spawnDRS() {
+    // DRS 条：更窄、偏蓝
+    const laneCount = 5;
+    const laneW = road.w / laneCount;
+    const lane = Math.floor(rand(0, laneCount));
+    const x = road.x - road.w/2 + laneW*(lane+0.5);
+    items.push({
+      kind:"drs",
+      x, y: -40,
+      w: 20, h: 34,
+      vy: speed * rand(0.85, 1.2),
+    });
+  }
+
+  function rectHit(a,b){
+    return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+  }
+
+  let carTimer = 0;
+  let itemTimer = 0;
+
+  function update() {
+    // 难度与速度随时间增长
+    if (running) {
+      difficulty += 0.0032;
+      speed += 0.0028;
+
+      // DRS 充能自然衰减
+      drs = clamp(drs - 0.0022, 0, 1);
+      drsActive = clamp(drsActive - 0.010, 0, 1);
+
+      const boost = 1 + drsActive * 0.55;
+      const worldSpeed = speed * boost;
+
+      // 玩家移动
+      const maxX = road.x + road.w/2 - road.edge - player.w/2;
+      const minX = road.x - road.w/2 + road.edge + player.w/2;
+
+      // 键盘控制 -> targetX
+      const steer = (left ? -1 : 0) + (right ? 1 : 0);
+      if (steer !== 0) {
+        player.targetX = clamp(player.targetX + steer * 10.5, minX, maxX);
+      }
+
+      // 追随 targetX（手机拖动更丝滑）
+      const dx = (player.targetX - player.x);
+      player.vx = dx * 0.18;
+      player.x += player.vx;
+      player.x = clamp(player.x, minX, maxX);
+
+      // 生成车流
+      carTimer++;
+      const carEvery = clamp(46 - difficulty*3.2, 18, 46);
+      if (carTimer >= carEvery) {
+        carTimer = 0;
+        spawnCar();
+        if (Math.random() < 0.20) spawnCar(); // 偶尔双车
+      }
+
+      // 生成 DRS
+      itemTimer++;
+      const itemEvery = clamp(220 - difficulty*10, 90, 220);
+      if (itemTimer >= itemEvery) {
+        itemTimer = 0;
+        spawnDRS();
+      }
+
+      // 更新车与道具位置
+      cars.forEach(c => c.y += (c.vy * boost));
+      items.forEach(it => it.y += (it.vy * boost));
+
+      cars = cars.filter(c => c.y < H + 120);
+      items = items.filter(it => it.y < H + 80);
+
+      // 计分：按时间 + 超车
+      score += (0.12 * boost);
+      for (const c of cars) {
+        if (!c.passed && c.y > player.y + player.h) {
+          c.passed = true;
+          score += (1.6 * boost);
+          // 粒子：超车风痕
+          for (let i=0;i<6;i++){
+            particles.push({
+              x: c.x + rand(-8,8),
+              y: c.y + rand(-8,8),
+              vx: rand(-0.6,0.6),
+              vy: rand(1.2,2.4),
+              life: rand(16,26),
+              a: 0.6
+            });
+          }
+        }
+      }
+
+      // 碰撞检测
+      const p = { x: player.x - player.w/2 + 4, y: player.y - player.h/2 + 6, w: player.w-8, h: player.h-10 };
+      for (const c of cars) {
+        const b = { x: c.x - c.w/2 + 5, y: c.y - c.h/2 + 6, w: c.w-10, h: c.h-12 };
+        if (rectHit(p,b)) { endGame(); break; }
+      }
+
+      // 吃道具
+      if (!gameOver) {
+        for (let i=items.length-1;i>=0;i--){
+          const it = items[i];
+          const b = { x: it.x - it.w/2, y: it.y - it.h/2, w: it.w, h: it.h };
+          if (rectHit(p,b)) {
+            items.splice(i,1);
+            drs = clamp(drs + 0.55, 0, 1);
+            drsActive = clamp(drsActive + 0.7, 0, 1);
+            // 粒子爆闪
+            for (let k=0;k<18;k++){
+              particles.push({
+                x: it.x + rand(-10,10),
+                y: it.y + rand(-10,10),
+                vx: rand(-1.8,1.8),
+                vy: rand(-1.0,2.6),
+                life: rand(18,34),
+                a: 0.9
+              });
+            }
+          }
+        }
+      }
+
+      // 更新 HUD
+      scoreEl.textContent = String(Math.floor(score));
+      spdEl.textContent = (1 + (difficulty-1)*0.08 + drsActive*0.55).toFixed(1) + "x";
+      drsEl.textContent = Math.round(drs*100) + "%";
+
+      // 赛道滚动
+      road.scroll = (road.scroll + worldSpeed) % (road.lineGap);
+    }
+
+    // 粒子
+    particles.forEach(p=>{
+      p.x += p.vx;
+      p.y += p.vy;
+      p.life -= 1;
+      p.a = Math.max(0, p.a - 0.03);
+    });
+    particles = particles.filter(p=>p.life>0 && p.a>0);
+  }
+
+  function drawRoad() {
+    // 外部背景
+    ctx.fillStyle = "rgba(255,255,255,0.03)";
+    ctx.fillRect(0,0,W,H);
+
+    // 赛道主体
+    const rx = road.x - road.w/2;
+    const ry = 18;
+    const rw = road.w;
+    const rh = H - 36;
+
+    // 草地
+    ctx.fillStyle = "rgba(16, 30, 24, 0.65)";
+    ctx.fillRect(0,0,rx, H);
+    ctx.fillRect(rx+rw,0,W-(rx+rw),H);
+
+    // 赛道
+    ctx.fillStyle = "rgba(20, 25, 40, 0.95)";
+    roundRect(rx, ry, rw, rh, 18, true);
+
+    // 边线
+    ctx.fillStyle = "rgba(255,255,255,0.14)";
+    ctx.fillRect(rx+road.edge, ry+10, 3, rh-20);
+    ctx.fillRect(rx+rw-road.edge-3, ry+10, 3, rh-20);
+
+    // 红白路肩
+    const kerbW = 10;
+    for (let y = ry; y < ry+rh; y += 18) {
+      const on = ((y/18)|0) % 2 === 0;
+      ctx.fillStyle = on ? "rgba(255,59,59,0.82)" : "rgba(255,255,255,0.78)";
+      ctx.fillRect(rx+road.edge-kerbW, y, kerbW, 10);
+      ctx.fillRect(rx+rw-road.edge, y, kerbW, 10);
+    }
+
+    // 中线虚线
+    const midX = road.x;
+    ctx.fillStyle = "rgba(255,255,255,0.16)";
+    for (let i = 0; i < 30; i++) {
+      const y = (i * road.lineGap - road.scroll);
+      ctx.fillRect(midX-2, y+30, 4, road.lineH);
+    }
+
+    // 起终点小条纹（装饰）
+    ctx.fillStyle = "rgba(56,189,248,0.12)";
+    ctx.fillRect(midX-70, H*0.12, 140, 4);
+  }
+
+  function drawCars() {
+    // 其他车
+    for (const c of cars) {
+      drawCar(c.x, c.y, c.w, c.h, c.color, 0.82);
+    }
+    // 道具
+    for (const it of items) {
+      if (it.kind === "drs") {
+        ctx.save();
+        ctx.translate(it.x, it.y);
+        ctx.fillStyle = "rgba(56,189,248,0.85)";
+        roundRect(-it.w/2, -it.h/2, it.w, it.h, 6, true);
+        ctx.fillStyle = "rgba(255,255,255,0.25)";
+        ctx.fillRect(-it.w/2+3, -it.h/2+5, it.w-6, 4);
+        ctx.fillStyle = "rgba(255,255,255,0.75)";
+        ctx.font = "700 12px ui-sans-serif,system-ui";
+        ctx.fillText("DRS", -12, 5);
+        ctx.restore();
+      }
+    }
+
+    // 粒子
+    for (const p of particles) {
+      ctx.globalAlpha = p.a;
+      ctx.fillStyle = "rgba(56,189,248,0.95)";
+      ctx.fillRect(p.x, p.y, 3, 3);
+      ctx.globalAlpha = 1;
+    }
+
+    // 玩家车（带 DRS 光晕）
+    const glow = drsActive;
+    if (glow > 0.05) {
+      ctx.save();
+      ctx.globalAlpha = 0.25 + glow*0.35;
+      ctx.fillStyle = "rgba(56,189,248,1)";
+      roundRect(player.x - player.w/2 - 8, player.y - player.h/2 - 10, player.w + 16, player.h + 20, 18, true);
+      ctx.restore();
+    }
+    drawCar(player.x, player.y, player.w, player.h, "rgba(255,255,255,0.92)", 1);
+  }
+
+  function drawCar(x,y,w,h,color,alpha=1){
+    ctx.save();
+    ctx.translate(x,y);
+    ctx.globalAlpha = alpha;
+
+    // 车身
+    ctx.fillStyle = color;
+    roundRect(-w/2, -h/2, w, h, 10, true);
+
+    // 驾驶舱
+    ctx.fillStyle = "rgba(56,189,248,0.35)";
+    roundRect(-w/2+6, -h/2+10, w-12, 16, 8, true);
+
+    // 前翼/尾翼
+    ctx.fillStyle = "rgba(0,0,0,0.25)";
+    ctx.fillRect(-w/2-6, -h/2+4, w+12, 6);
+    ctx.fillRect(-w/2-6, h/2-10, w+12, 6);
+
+    // 轮胎
+    ctx.fillStyle = "rgba(0,0,0,0.45)";
+    ctx.fillRect(-w/2-6, -h/2+12, 6, 14);
+    ctx.fillRect(w/2, -h/2+12, 6, 14);
+    ctx.fillRect(-w/2-6, h/2-26, 6, 14);
+    ctx.fillRect(w/2, h/2-26, 6, 14);
+
+    // 中线高光
+    ctx.fillStyle = "rgba(255,255,255,0.14)";
+    ctx.fillRect(-2, -h/2+6, 4, h-12);
+
+    ctx.restore();
+  }
+
+  function roundRect(x, y, w, h, r, fill){
+    const rr = Math.min(r, w/2, h/2);
+    ctx.beginPath();
+    ctx.moveTo(x+rr, y);
+    ctx.arcTo(x+w, y, x+w, y+h, rr);
+    ctx.arcTo(x+w, y+h, x, y+h, rr);
+    ctx.arcTo(x, y+h, x, y, rr);
+    ctx.arcTo(x, y, x+w, y, rr);
+    if (fill) ctx.fill();
+  }
+
+  function drawOverlay() {
+    if (!running && !gameOver) {
+      ctx.fillStyle = "rgba(0,0,0,0.25)";
+      ctx.fillRect(0,0,W,H);
+      ctx.fillStyle = "rgba(255,255,255,0.92)";
+      ctx.font = "800 26px ui-sans-serif,system-ui";
+      ctx.fillText("F1：赛道超车", W/2-84, H/2-18);
+      ctx.font = "500 15px ui-sans-serif,system-ui";
+      ctx.fillStyle = "rgba(255,255,255,0.78)";
+      ctx.fillText("触摸/Space 开始，左右移动躲避车流，吃 DRS 加速", W/2-215, H/2+12);
+    }
+    if (gameOver) {
+      ctx.fillStyle = "rgba(0,0,0,0.35)";
+      ctx.fillRect(0,0,W,H);
+      ctx.fillStyle = "rgba(255,255,255,0.92)";
+      ctx.font = "900 28px ui-sans-serif,system-ui";
+      ctx.fillText("Crash! 🏁", W/2-58, H/2-16);
+      ctx.font = "600 15px ui-sans-serif,system-ui";
+      ctx.fillStyle = "rgba(255,255,255,0.78)";
+      ctx.fillText("按 Space 或点重新开始", W/2-92, H/2+16);
+    }
+  }
+
+  function draw() {
+    ctx.clearRect(0,0,W,H);
+    drawRoad();
+    drawCars();
+    drawOverlay();
+  }
+
+  function loop() {
+    update();
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  // 输入：键盘
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'ArrowLeft' || e.code === 'KeyA') left = true;
+    if (e.code === 'ArrowRight' || e.code === 'KeyD') right = true;
+
+    if (e.code === 'Space') {
+      e.preventDefault();
+      if (gameOver) reset();
+      start();
+    }
+  });
+  window.addEventListener('keyup', (e) => {
+    if (e.code === 'ArrowLeft' || e.code === 'KeyA') left = false;
+    if (e.code === 'ArrowRight' || e.code === 'KeyD') right = false;
+  });
+
+  // 输入：手机拖动
+  let dragging = false;
+  canvas.addEventListener('pointerdown', (e) => {
+    canvas.setPointerCapture(e.pointerId);
+    dragging = true;
+    if (gameOver) reset();
+    start();
+    moveToPointer(e);
+  });
+  canvas.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    moveToPointer(e);
+  });
+  canvas.addEventListener('pointerup', () => dragging = false);
+  canvas.addEventListener('pointercancel', () => dragging = false);
+
+  function moveToPointer(e){
+    const rect = canvas.getBoundingClientRect();
+    const px = (e.clientX - rect.left) / rect.width * W;
+    const maxX = road.x + road.w/2 - road.edge - player.w/2;
+    const minX = road.x - road.w/2 + road.edge + player.w/2;
+    player.targetX = clamp(px, minX, maxX);
+  }
+
+  restartBtn.addEventListener('click', () => reset());
+
+  // 防止双击缩放误触（部分浏览器）
+  let lastTap = 0;
+  canvas.addEventListener('touchend', (e) => {
+    const now = Date.now();
+    if (now - lastTap < 300) e.preventDefault();
+    lastTap = now;
+  }, {passive:false});
+
+  reset();
+  loop();
+})();
+</script>
+</body>
+</html>
