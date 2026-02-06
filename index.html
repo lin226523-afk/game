@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>网页小游戏：跳跳躲障碍</title>
+  <style>
+    :root { --bg:#0b1020; --fg:#e8ecff; --accent:#6ee7ff; --danger:#ff6b6b; }
+    body {
+      margin:0; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Arial;
+      background: radial-gradient(1200px 600px at 50% 0%, #18234a 0%, var(--bg) 55%);
+      color:var(--fg); display:flex; min-height:100vh; align-items:center; justify-content:center;
+    }
+    .wrap { width:min(860px, 94vw); }
+    .hud {
+      display:flex; gap:12px; align-items:center; justify-content:space-between;
+      margin: 0 0 10px 0;
+    }
+    .hud .left { display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
+    .pill {
+      border:1px solid rgba(255,255,255,.18);
+      background: rgba(255,255,255,.06);
+      padding:8px 10px; border-radius:999px; font-size:14px;
+      backdrop-filter: blur(8px);
+    }
+    button {
+      border:1px solid rgba(255,255,255,.22);
+      background: rgba(110,231,255,.12);
+      color:var(--fg); padding:8px 12px; border-radius:10px;
+      cursor:pointer; font-weight:600;
+    }
+    button:hover { background: rgba(110,231,255,.18); }
+    canvas {
+      width:100%; height:auto; border-radius:16px;
+      background: linear-gradient(#0e1633, #0a0f22);
+      box-shadow: 0 18px 55px rgba(0,0,0,.45);
+      border: 1px solid rgba(255,255,255,.14);
+      touch-action: manipulation;
+    }
+    .tip { margin-top:10px; opacity:.85; font-size:14px; line-height:1.5; }
+    .kbd { padding:1px 6px; border-radius:6px; border:1px solid rgba(255,255,255,.25); background:rgba(255,255,255,.08); }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hud">
+    <div class="left">
+      <div class="pill">分数：<span id="score">0</span></div>
+      <div class="pill">最高分：<span id="best">0</span></div>
+      <div class="pill" id="state">准备开始</div>
+    </div>
+    <div class="right">
+      <button id="restart">重新开始</button>
+    </div>
+  </div>
+
+  <canvas id="c" width="860" height="320" aria-label="小游戏画布"></canvas>
+
+  <div class="tip">
+    操作：<span class="kbd">Space</span> / 点击 / 触摸 跳跃。撞到障碍就结束。<br/>
+    小彩蛋：连续完美躲避会加速更快（更难也更高分）。
+  </div>
+</div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+
+  const scoreEl = document.getElementById('score');
+  const bestEl  = document.getElementById('best');
+  const stateEl = document.getElementById('state');
+  const restartBtn = document.getElementById('restart');
+
+  const W = canvas.width, H = canvas.height;
+  const groundY = H - 56;
+
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const rand  = (a, b) => a + Math.random() * (b - a);
+
+  // HiDPI 兼容（不改变逻辑尺寸）
+  const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+  canvas.style.width = W + "px";
+  canvas.style.height = H + "px";
+  canvas.width = Math.floor(W * dpr);
+  canvas.height = Math.floor(H * dpr);
+  ctx.scale(dpr, dpr);
+
+  let best = Number(localStorage.getItem('jump_best') || 0);
+  bestEl.textContent = best;
+
+  // 游戏对象
+  const player = {
+    x: 90,
+    y: groundY,
+    w: 34,
+    h: 44,
+    vy: 0,
+    onGround: true,
+  };
+
+  let obstacles = [];
+  let particles = [];
+
+  let running = false;
+  let gameOver = false;
+
+  let speed = 4.2;
+  let spawnTimer = 0;
+  let spawnEvery = 85; // 帧
+  let score = 0;
+  let streak = 0;
+
+  function reset() {
+    obstacles = [];
+    particles = [];
+    player.y = groundY;
+    player.vy = 0;
+    player.onGround = true;
+
+    running = false;
+    gameOver = false;
+
+    speed = 4.2;
+    spawnTimer = 0;
+    spawnEvery = 85;
+    score = 0;
+    streak = 0;
+
+    scoreEl.textContent = "0";
+    stateEl.textContent = "准备开始（跳一下开局）";
+  }
+
+  function jump() {
+    if (!running && !gameOver) running = true;
+    if (gameOver) return;
+
+    if (player.onGround) {
+      player.vy = -11.5;
+      player.onGround = false;
+      // 粒子
+      for (let i = 0; i < 10; i++) {
+        particles.push({
+          x: player.x + player.w * 0.5,
+          y: groundY + player.h - 6,
+          vx: rand(-1.2, 1.2),
+          vy: rand(-2.0, -0.3),
+          life: rand(18, 28),
+        });
+      }
+    }
+  }
+
+  function addObstacle() {
+    const type = Math.random() < 0.78 ? "cactus" : "tall";
+    const h = type === "cactus" ? rand(26, 42) : rand(46, 64);
+    const w = type === "cactus" ? rand(18, 28) : rand(18, 24);
+    obstacles.push({
+      x: W + 30,
+      y: groundY + player.h - h,
+      w, h,
+      passed: false,
+      type,
+    });
+  }
+
+  function rectsOverlap(a, b) {
+    return (
+      a.x < b.x + b.w &&
+      a.x + a.w > b.x &&
+      a.y < b.y + b.h &&
+      a.y + a.h > b.y
+    );
+  }
+
+  function endGame() {
+    gameOver = true;
+    running = false;
+    stateEl.textContent = "结束啦（点重新开始或按 Space）";
+    if (score > best) {
+      best = score;
+      localStorage.setItem('jump_best', String(best));
+      bestEl.textContent = best;
+    }
+  }
+
+  function update() {
+    // 物理
+    if (running) {
+      player.vy += 0.58;            // 重力
+      player.y += player.vy;
+
+      if (player.y >= groundY) {
+        player.y = groundY;
+        player.vy = 0;
+        player.onGround = true;
+      }
+
+      // 障碍移动/生成
+      spawnTimer++;
+      if (spawnTimer >= spawnEvery) {
+        spawnTimer = 0;
+        addObstacle();
+        // 随速度缩短生成间隔
+        spawnEvery = clamp(92 - speed * 6.5, 42, 92);
+      }
+
+      obstacles.forEach(o => o.x -= speed);
+      obstacles = obstacles.filter(o => o.x + o.w > -40);
+
+      // 计分：通过障碍
+      for (const o of obstacles) {
+        if (!o.passed && o.x + o.w < player.x) {
+          o.passed = true;
+          score += 1;
+          streak += 1;
+
+          // 连续躲避奖励：更快更刺激
+          if (streak % 6 === 0) speed += 0.35;
+          scoreEl.textContent = String(score);
+        }
+      }
+
+      // 小幅度随时间加速
+      speed += 0.0025;
+
+      // 碰撞
+      const hitbox = { x: player.x + 4, y: player.y + 4, w: player.w - 8, h: player.h - 6 };
+      for (const o of obstacles) {
+        const ob = { x: o.x + 2, y: o.y + 2, w: o.w - 4, h: o.h - 4 };
+        if (rectsOverlap(hitbox, ob)) {
+          endGame();
+          break;
+        }
+      }
+
+      stateEl.textContent = "进行中";
+    }
+
+    // 粒子
+    particles.forEach(p => {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.14;
+      p.life -= 1;
+    });
+    particles = particles.filter(p => p.life > 0);
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+
+    // 背景小星星
+    ctx.save();
+    ctx.globalAlpha = 0.65;
+    for (let i = 0; i < 38; i++) {
+      const x = (i * 67 + (performance.now() * 0.02)) % W;
+      const y = (i * 29) % (groundY - 60);
+      ctx.fillStyle = "rgba(255,255,255,0.14)";
+      ctx.fillRect(x, y, 2, 2);
+    }
+    ctx.restore();
+
+    // 地面
+    ctx.fillStyle = "rgba(255,255,255,0.08)";
+    ctx.fillRect(0, groundY + player.h, W, 2);
+    ctx.fillStyle = "rgba(110,231,255,0.10)";
+    for (let i = 0; i < 28; i++) {
+      const x = (i * 40 - (performance.now() * speed * 0.25) % 40);
+      ctx.fillRect(x, groundY + player.h + 10, 18, 2);
+    }
+
+    // 障碍
+    for (const o of obstacles) {
+      ctx.fillStyle = o.type === "tall" ? "rgba(255,107,107,0.80)" : "rgba(110,231,255,0.78)";
+      ctx.fillRect(o.x, o.y, o.w, o.h);
+      // 顶部高光
+      ctx.fillStyle = "rgba(255,255,255,0.18)";
+      ctx.fillRect(o.x + 2, o.y + 2, Math.max(2, o.w - 6), 3);
+    }
+
+    // 玩家
+    ctx.fillStyle = "rgba(232,236,255,0.92)";
+    ctx.fillRect(player.x, player.y, player.w, player.h);
+    ctx.fillStyle = "rgba(110,231,255,0.35)";
+    ctx.fillRect(player.x + 6, player.y + 8, player.w - 12, 10);
+
+    // 粒子
+    for (const p of particles) {
+      ctx.globalAlpha = clamp(p.life / 28, 0, 1);
+      ctx.fillStyle = "rgba(110,231,255,0.9)";
+      ctx.fillRect(p.x, p.y, 3, 3);
+    }
+    ctx.globalAlpha = 1;
+
+    // 结束遮罩
+    if (gameOver) {
+      ctx.fillStyle = "rgba(0,0,0,0.35)";
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = "rgba(255,255,255,0.92)";
+      ctx.font = "700 26px ui-sans-serif, system-ui, -apple-system, Segoe UI, Arial";
+      ctx.fillText("Game Over", W/2 - 70, H/2 - 10);
+      ctx.font = "500 16px ui-sans-serif, system-ui, -apple-system, Segoe UI, Arial";
+      ctx.fillText("按 Space 或点“重新开始”再来一局", W/2 - 150, H/2 + 22);
+    }
+
+    // 未开始提示
+    if (!running && !gameOver) {
+      ctx.fillStyle = "rgba(0,0,0,0.20)";
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = "rgba(255,255,255,0.92)";
+      ctx.font = "700 22px ui-sans-serif, system-ui, -apple-system, Segoe UI, Arial";
+      ctx.fillText("按 Space / 点击 开始", W/2 - 105, H/2 - 6);
+      ctx.font = "500 14px ui-sans-serif, system-ui, -apple-system, Segoe UI, Arial";
+      ctx.fillStyle = "rgba(255,255,255,0.76)";
+      ctx.fillText("躲开障碍，分数越高速度越快", W/2 - 128, H/2 + 22);
+    }
+  }
+
+  function loop() {
+    update();
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  // 输入
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space') {
+      e.preventDefault();
+      if (gameOver) reset();
+      jump();
+    }
+  });
+  canvas.addEventListener('pointerdown', () => {
+    if (gameOver) reset();
+    jump();
+  });
+  restartBtn.addEventListener('click', () => {
+    reset();
+  });
+
+  // 开始
+  reset();
+  loop();
+})();
+</script>
+</body>
+</html>
