@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>测测你是哪位 F1 车手（37人版）</title>
+  <style>
+    :root{
+      --bg:#070b18; --fg:#eaf0ff; --muted:rgba(255,255,255,.72);
+      --card:rgba(255,255,255,.06); --bd:rgba(255,255,255,.16);
+      --a:#ff3b3b; --b:#38bdf8; --c:#a78bfa;
+    }
+    html,body{height:100%;margin:0}
+    body{
+      display:flex;align-items:center;justify-content:center;
+      background: radial-gradient(1000px 560px at 50% 0%, #1b2450 0%, var(--bg) 60%);
+      color:var(--fg);
+      font-family: ui-sans-serif,system-ui,-apple-system,"Segoe UI",Arial;
+      padding:18px;
+    }
+    .wrap{width:min(1100px, 96vw)}
+    .top{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:12px}
+    .brand{display:flex;gap:10px;align-items:center;font-weight:950;letter-spacing:.2px}
+    .dot{width:10px;height:10px;border-radius:999px;background:linear-gradient(90deg,var(--a),var(--b))}
+    .pill{
+      border:1px solid var(--bd); background:var(--card);
+      padding:8px 10px;border-radius:999px;font-size:14px;
+      backdrop-filter: blur(8px);
+    }
+    .panel{
+      border:1px solid var(--bd); background:var(--card);
+      border-radius:16px; padding:16px;
+      box-shadow:0 18px 55px rgba(0,0,0,.45);
+    }
+    h1{font-size:20px;margin:0 0 6px 0}
+    .sub{color:var(--muted);font-size:14px;line-height:1.6;margin:0 0 12px 0}
+    .bar{
+      height:10px;border-radius:999px;background:rgba(255,255,255,.10);
+      border:1px solid rgba(255,255,255,.12); overflow:hidden; margin:10px 0 2px;
+    }
+    .bar > div{height:100%;width:0%;background:linear-gradient(90deg,var(--b),var(--c))}
+    .small{font-size:12px;color:var(--muted)}
+    .answers{display:grid;gap:10px;margin-top:12px}
+    button.opt{
+      text-align:left; width:100%;
+      border:1px solid rgba(255,255,255,.18);
+      background:rgba(255,255,255,.05);
+      color:var(--fg); padding:12px 12px;border-radius:12px;
+      cursor:pointer; font-weight:800; line-height:1.3;
+      transition: transform .05s ease, background .12s ease, border-color .12s ease;
+      touch-action: manipulation;
+    }
+    button.opt:hover{background:rgba(56,189,248,.10); border-color:rgba(56,189,248,.35)}
+    button.opt:active{transform:scale(.99)}
+    .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+    button.action{
+      border:1px solid rgba(255,255,255,.20);
+      background:rgba(56,189,248,.14);
+      color:var(--fg); padding:10px 12px;border-radius:12px;
+      cursor:pointer;font-weight:950
+    }
+    button.action.secondary{background:rgba(255,255,255,.06)}
+    .resultCard{
+      display:flex;gap:12px;align-items:flex-start;
+      border:1px solid rgba(255,255,255,.18);
+      background:rgba(0,0,0,.18);
+      border-radius:14px;padding:12px;margin-top:12px;
+    }
+    .badge{
+      min-width:62px;height:62px;border-radius:16px;
+      background:linear-gradient(135deg,rgba(255,59,59,.95),rgba(56,189,248,.75));
+      display:flex;align-items:center;justify-content:center;
+      font-size:26px;font-weight:1000;
+      box-shadow:0 10px 22px rgba(0,0,0,.35);
+    }
+    .rtitle{font-size:18px;font-weight:1000;margin:0}
+    .rdesc{margin:6px 0 0 0;color:var(--muted);line-height:1.55}
+    .tags{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+    .tag{font-size:12px;padding:5px 8px;border-radius:999px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.06)}
+    .mini{margin-top:10px;color:var(--muted);font-size:13px;line-height:1.55}
+    .foot{margin-top:10px;font-size:12px;color:rgba(255,255,255,.55)}
+    .kbd{padding:1px 6px;border-radius:6px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08)}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <div class="brand"><span class="dot"></span>F1 小游戏：车手人格测试（37人版）</div>
+      <div class="pill" id="status">未开始</div>
+    </div>
+
+    <div class="panel">
+      <h1 id="title">点击开始，测测你的“车手气质” 🏁</h1>
+      <p class="sub" id="subtitle">一共 10 题，选你最像的反应。结果仅供娱乐。</p>
+
+      <div class="bar" aria-label="进度条"><div id="bar"></div></div>
+      <div class="small"><span id="progress">0/10</span></div>
+
+      <div id="quizArea" style="margin-top:10px"></div>
+
+      <div class="row">
+        <button class="action" id="startBtn">开始测试</button>
+        <button class="action secondary" id="restartBtn" style="display:none">再测一次</button>
+        <button class="action secondary" id="shareBtn" style="display:none">复制结果文案</button>
+      </div>
+
+      <div class="foot">电脑可用 <span class="kbd">1-4</span> 快选答案；手机直接点选即可。</div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  // ===== 37 位车手结果池 =====
+  const drivers = [
+    // 经典/近代
+    { id:"msc", name:"迈克尔·舒马赫 Michael Schumacher", emoji:"🏎️", tags:["极强专注","长距离统治","强执行"], desc:"你是“冠军工厂型”车手：专注度拉满、执行力惊人，能把优势稳定转化为胜利。"},
+    { id:"sen", name:"埃尔顿·塞纳 Ayrton Senna", emoji:"⚡", tags:["排位神速","信念感","极限掌控"], desc:"你是信念驱动的极限派：关键一圈敢把边界推到最外沿，越难越兴奋。"},
+    { id:"pro", name:"阿兰·普罗斯特 Alain Prost", emoji:"🧩", tags:["策略大师","低失误","算得很细"], desc:"你像“教授”：用更少的风险换更高的胜率，擅长把比赛变成一道可解的题。"},
+    { id:"man", name:"奈杰尔·曼塞尔 Nigel Mansell", emoji:"💥", tags:["强硬对抗","气势型","敢拼"], desc:"你是硬碰硬的斗士：敢顶、敢抢、敢扛，气势一起来就很难被压住。"},
+    { id:"hak", name:"米卡·哈基宁 Mika Häkkinen", emoji:"🧊", tags:["冷静高速","节奏精准","关键出手"], desc:"你更像“冰人系”：外表平静，内核很快；出手不多，但往往是致命一击。"},
+    { id:"rai", name:"基米·莱科宁 Kimi Räikkönen", emoji:"🥶", tags:["不废话","节奏怪","心态稳定"], desc:"你是“低能耗高输出”：不爱解释，状态一到就很恐怖，心态极稳。"},
+    { id:"but", name:"简森·巴顿 Jenson Button", emoji:"🌤️", tags:["丝滑驾驶","轮胎管理","聪明取舍"], desc:"你擅长用细腻和判断赢比赛：懂得什么时候该忍、什么时候该打。"},
+    { id:"web", name:"马克·韦伯 Mark Webber", emoji:"🛡️", tags:["强硬","经验派","稳扎稳打"], desc:"你属于“老练强硬派”：对抗不虚，节奏稳，遇到机会会很果断。"},
+    { id:"vet", name:"塞巴斯蒂安·维特尔 Sebastian Vettel", emoji:"🏁", tags:["节奏统治","专注","高上限"], desc:"你是“节奏统治型”：一旦进入状态，就能连续输出高质量表现。"},
+    { id:"ros", name:"尼科·罗斯伯格 Nico Rosberg", emoji:"📈", tags:["自律","计算型","目标感"], desc:"你是“精英学霸型”：靠自律、分析和执行，把自己推到最强。"},
+    { id:"per", name:"塞尔吉奥·佩雷兹 Sergio Pérez", emoji:"🛞", tags:["轮胎管理","逆风局","耐心"], desc:"你擅长把复杂局面慢慢掰回来：轮胎和节奏管理是你的强项。"},
+    { id:"mag", name:"凯文·马格努森 Kevin Magnussen", emoji:"🧱", tags:["强硬防守","不让位","硬刚"], desc:"你是“强硬防守派”：不怕对抗，关键位置绝不轻易交出去。"},
+    { id:"ric", name:"丹尼尔·里卡多 Daniel Ricciardo", emoji:"😎", tags:["晚刹车","快乐狠","临场感"], desc:"你是“快乐杀手”：气氛担当，但出手非常狠，晚刹车很有代表性。"},
+    { id:"bot", name:"瓦尔特里·博塔斯 Valtteri Bottas", emoji:"🧊", tags:["稳定","干净","节奏派"], desc:"你是“干净稳定型”：少失误、节奏好，擅长把该拿的分拿到手。"},
+    { id:"zhou", name:"周冠宇 Zhou Guanyu", emoji:"🟦", tags:["稳","学习快","耐心"], desc:"你属于“稳步成长型”：节奏扎实，越跑越强，抗压能力也在上升。"},
+    { id:"col", name:"弗朗科·科拉平托 Franco Colapinto", emoji:"🌪️", tags:["新秀冲劲","胆子大","上限未知"], desc:"你更像“新秀冲刺型”：敢拼敢冲，状态上来会非常亮眼。"},
+    { id:"lin", name:"阿维德·林德布拉德 Arvid Lindblad", emoji:"🚀", tags:["新秀天赋","冲劲","未来感"], desc:"你是“未来派新秀”：天赋型，敢把极限推开，成长空间很大。"},
+  ];
+
+  // ===== 2025 现役 20 位 =====
+  const current2025 = [
+    { id:"ver", name:"马克斯·维斯塔潘 Max Verstappen", emoji:"🦁", tags:["极致进攻","冷静计算","胜负欲"], desc:"你属于想赢就现在赢：出手果断、判断快、抗压强，目标感特别清晰。"},
+    { id:"law", name:"利亚姆·劳森 Liam Lawson", emoji:"🧨", tags:["新秀硬气","敢对抗","上手快"], desc:"你是“新秀硬气派”：不怕对抗，上手速度快，敢在强者面前出手。"},
+    { id:"lec", name:"夏尔·勒克莱尔 Charles Leclerc", emoji:"🎯", tags:["天赋速度","完美主义","极限圈"], desc:"你像天赋型选手：冲刺时很锋利，追求漂亮的一击，对自己要求很严。"},
+    { id:"ham", name:"刘易斯·汉密尔顿 Lewis Hamilton", emoji:"👑", tags:["大局观","稳定输出","关键圈"], desc:"你是关键时刻更强：节奏稳、策略强，越到重要节点越能拉满表现。"},
+    { id:"nor", name:"兰多·诺里斯 Lando Norris", emoji:"😄", tags:["快乐但狠","反应快","节奏变化"], desc:"你是开朗狠角色：表面轻松，真上强度时一点不含糊。"},
+    { id:"pia", name:"奥斯卡·皮亚斯特里 Oscar Piastri", emoji:"🧠", tags:["冷静","学习快","稳狠"], desc:"你属于冷静高效型：不吵不闹，但每次都在进步，关键时刻很稳。"},
+    { id:"rus", name:"乔治·拉塞尔 George Russell", emoji:"🧊", tags:["硬","准","不服输"], desc:"你是“硬而准”的类型：对抗强，节奏准，遇到机会会非常果断。"},
+    { id:"ant", name:"安德烈亚·基米·安东内利 Andrea Kimi Antonelli", emoji:"⭐", tags:["新秀天赋","学习曲线陡","上限高"], desc:"你是“天赋新秀派”：学习速度极快，越跑越强，上限非常高。"},
+    { id:"alo", name:"费尔南多·阿隆索 Fernando Alonso", emoji:"🦊", tags:["读局老辣","抓机会","战术灵活"], desc:"你擅长读局：在复杂局面里找突破口，用最小代价换最大收益。"},
+    { id:"str", name:"兰斯·斯特罗尔 Lance Stroll", emoji:"🧩", tags:["韧性","稳","抗压"], desc:"你属于“韧性派”：逆风局不崩，能慢慢把节奏找回来。"},
+    { id:"tsu", name:"角田裕毅 Yuki Tsunoda", emoji:"🔥", tags:["爆发力","敢拼","情绪真实"], desc:"你是“爆发型”：状态来了很快很猛，敢拼敢抢，性格也很真实。"},
+    { id:"had", name:"伊萨克·哈贾尔 Isack Hadjar", emoji:"⚡", tags:["新秀速度","锐","敢冲"], desc:"你是“锐利新秀”：速度很尖，敢把机会变成进攻。"},
+    { id:"bea", name:"奥利弗·贝尔曼 Oliver Bearman", emoji:"🟩", tags:["新秀沉稳","临场强","抗压"], desc:"你属于“沉稳新秀”：临场不慌，越到压力局越能稳住发挥。"},
+    { id:"oco", name:"埃斯特班·奥康 Esteban Ocon", emoji:"🛡️", tags:["强硬","对抗","不让"], desc:"你是“强硬对抗派”：位置不轻易交，关键时候非常硬。"},
+    { id:"gas", name:"皮埃尔·加斯利 Pierre Gasly", emoji:"💠", tags:["节奏派","反弹力","稳"], desc:"你属于“反弹型”：低谷能爬出来，状态回来时节奏很强。"},
+    { id:"doo", name:"杰克·杜汉 Jack Doohan", emoji:"🏹", tags:["新秀冲劲","执行力","想证明"], desc:"你是“想证明自己”的新秀：执行力强，冲劲足，比赛感越来越好。"},
+    { id:"alb", name:"亚历克斯·阿尔本 Alex Albon", emoji:"🟦", tags:["稳","救车","极限控制"], desc:"你是“极限控制型”：能把不容易的局面开得很干净，救车能力强。"},
+    { id:"sai", name:"卡洛斯·塞恩斯 Carlos Sainz", emoji:"🧠", tags:["策略控","稳中求胜","执行力"], desc:"你是会做题的车手：擅长规划和执行，把胜率一点点堆起来。"},
+    { id:"hul", name:"尼科·霍肯伯格 Nico Hülkenberg", emoji:"🧰", tags:["经验","稳定","少失误"], desc:"你属于“经验工具人”：稳定、少失误，关键时刻能把车带回家。"},
+    { id:"bor", name:"加布里埃尔·博托莱托 Gabriel Bortoleto", emoji:"🌟", tags:["新秀天赋","稳定上升","未来感"], desc:"你是“稳步上升的新秀”：越跑越强，天赋和稳定性都很突出。"},
+  ];
+
+  // 合并结果池
+  const allDrivers = [...current2025, ...drivers];
+
+  // ===== 特质维度 =====
+  const traits = ["pace","racecraft","strategy","risk","pressure","craft","consistency","charisma"];
+
+  // ===== 车手 profile（粗略娱乐向，不是事实数据）=====
+  // 说明：这里的数字越高，代表越贴近该特质
+  const P = {
+    // 2025 现役
+    ver:{pace:5,racecraft:5,strategy:3,risk:4,pressure:4,craft:5,consistency:4,charisma:3},
+    law:{pace:4,racecraft:4,strategy:2,risk:4,pressure:3,craft:4,consistency:3,charisma:3},
+    lec:{pace:5,racecraft:3,strategy:2,risk:3,pressure:3,craft:4,consistency:3,charisma:3},
+    ham:{pace:4,racecraft:4,strategy:4,risk:2,pressure:5,craft:4,consistency:5,charisma:4},
+    nor:{pace:4,racecraft:4,strategy:3,risk:3,pressure:3,craft:4,consistency:4,charisma:5},
+    pia:{pace:4,racecraft:4,strategy:3,risk:2,pressure:4,craft:4,consistency:4,charisma:3},
+    rus:{pace:4,racecraft:4,strategy:3,risk:3,pressure:4,craft:4,consistency:4,charisma:3},
+    ant:{pace:4,racecraft:3,strategy:3,risk:3,pressure:3,craft:4,consistency:3,charisma:3},
+    alo:{pace:4,racecraft:5,strategy:4,risk:3,pressure:4,craft:5,consistency:4,charisma:3},
+    str:{pace:3,racecraft:3,strategy:3,risk:2,pressure:3,craft:3,consistency:3,charisma:3},
+    tsu:{pace:4,racecraft:4,strategy:2,risk:4,pressure:3,craft:4,consistency:3,charisma:4},
+    had:{pace:4,racecraft:3,strategy:2,risk:4,pressure:3,craft:4,consistency:3,charisma:3},
+    bea:{pace:4,racecraft:3,strategy:3,risk:3,pressure:4,craft:4,consistency:4,charisma:3},
+    oco:{pace:3,racecraft:4,strategy:3,risk:3,pressure:4,craft:3,consistency:4,charisma:2},
+    gas:{pace:4,racecraft:3,strategy:3,risk:3,pressure:3,craft:4,consistency:3,charisma:3},
+    doo:{pace:3,racecraft:3,strategy:2,risk:3,pressure:3,craft:3,consistency:3,charisma:3},
+    alb:{pace:4,racecraft:3,strategy:3,risk:2,pressure:4,craft:5,consistency:4,charisma:3},
+    sai:{pace:4,racecraft:3,strategy:5,risk:2,pressure:4,craft:3,consistency:5,charisma:3},
+    hul:{pace:3,racecraft:3,strategy:3,risk:2,pressure:4,craft:3,consistency:4,charisma:2},
+    bor:{pace:4,racecraft:3,strategy:3,risk:3,pressure:3,craft:4,consistency:4,charisma:3},
+
+    // 经典/近代 + 追加
+    msc:{pace:4,racecraft:4,strategy:3,risk:2,pressure:4,craft:4,consistency:5,charisma:3},
+    sen:{pace:5,racecraft:4,strategy:2,risk:4,pressure:4,craft:4,consistency:3,charisma:4},
+    pro:{pace:4,racecraft:3,strategy:5,risk:2,pressure:4,craft:3,consistency:5,charisma:3},
+    man:{pace:4,racecraft:5,strategy:2,risk:4,pressure:3,craft:4,consistency:3,charisma:4},
+    hak:{pace:4,racecraft:4,strategy:3,risk:2,pressure:4,craft:4,consistency:4,charisma:2},
+    rai:{pace:4,racecraft:4,strategy:3,risk:2,pressure:4,craft:4,consistency:4,charisma:2},
+    but:{pace:4,racecraft:3,strategy:4,risk:2,pressure:4,craft:4,consistency:5,charisma:4},
+    web:{pace:4,racecraft:4,strategy:3,risk:3,pressure:3,craft:4,consistency:4,charisma:3},
+    vet:{pace:5,racecraft:4,strategy:3,risk:3,pressure:4,craft:4,consistency:4,charisma:4},
+    ros:{pace:4,racecraft:3,strategy:4,risk:2,pressure:4,craft:3,consistency:5,charisma:3},
+    per:{pace:3,racecraft:3,strategy:4,risk:2,pressure:4,craft:3,consistency:4,charisma:3},
+    mag:{pace:3,racecraft:4,strategy:2,risk:4,pressure:3,craft:3,consistency:3,charisma:3},
+    ric:{pace:4,racecraft:4,strategy:3,risk:3,pressure:3,craft:4,consistency:3,charisma:5},
+    bot:{pace:4,racecraft:3,strategy:3,risk:2,pressure:4,craft:3,consistency:5,charisma:2},
+    zhou:{pace:3,racecraft:3,strategy:3,risk:2,pressure:3,craft:3,consistency:4,charisma:3},
+    col:{pace:4,racecraft:3,strategy:2,risk:4,pressure:3,craft:4,consistency:3,charisma:3},
+    lin:{pace:4,racecraft:3,strategy:2,risk:4,pressure:3,craft:4,consistency:3,charisma:3},
+  };
+
+  // ===== 题目（10题，4选项）=====
+  const questions = [
+    { q:"起跑灯灭的一瞬间，你更像哪种？", a:[
+      {t:"先稳住避免意外，再找机会", add:{consistency:2,strategy:1,pressure:1}},
+      {t:"直接抢内线，成败在此一举", add:{racecraft:2,risk:2,pace:1}},
+      {t:"观察两侧动向，找空档一口气穿过去", add:{craft:2,racecraft:1,pressure:1}},
+      {t:"第一弯就是我的舞台，极限刹车", add:{pace:2,risk:1,craft:1}},
+    ]},
+    { q:"遇到慢车挡路，你会怎么做？", a:[
+      {t:"耐心等他失误，一击致命", add:{strategy:2,craft:1,pressure:1}},
+      {t:"逼迫他防守，制造破绽", add:{racecraft:2,risk:1,pressure:1}},
+      {t:"用更优路线/出弯速度完成超越", add:{strategy:1,craft:2,consistency:1}},
+      {t:"我能在一个弯里完成超车", add:{pace:1,racecraft:2,risk:1}},
+    ]},
+    { q:"团队告诉你：策略有两套，你更偏向？", a:[
+      {t:"保守但稳：先拿到确定性积分", add:{consistency:2,strategy:2}},
+      {t:"激进：赌一次安全车/雨来", add:{risk:2,strategy:1,craft:1}},
+      {t:"看数据：轮胎、对手节奏再决定", add:{strategy:2,pressure:1,consistency:1}},
+      {t:"清晰的 Plan A：一路冲到最前", add:{pace:1,racecraft:2,pressure:1}},
+    ]},
+    { q:"你更擅长哪种赛段？", a:[
+      {t:"长距离稳定输出，节奏像钟表", add:{consistency:3,pressure:1}},
+      {t:"轮对轮对抗，谁都别想轻松过我", add:{racecraft:3,risk:1}},
+      {t:"排位一圈：把极限圈跑出来", add:{pace:3,pressure:1}},
+      {t:"混乱局：雨战/安全车我更兴奋", add:{craft:2,risk:1,strategy:1}},
+    ]},
+    { q:"压力来临时，你的反应更像？", a:[
+      {t:"越紧张越清晰：把每个步骤做对", add:{pressure:2,consistency:2}},
+      {t:"我会更凶：机会在压力里", add:{pressure:1,risk:2,racecraft:1}},
+      {t:"先稳住节奏，再逐步提速", add:{consistency:2,strategy:1,pressure:1}},
+      {t:"先读局：搞清楚对手想干嘛", add:{craft:2,strategy:1,pressure:1}},
+    ]},
+    { q:"你对“风险”的态度更像？", a:[
+      {t:"风险可控才冒：先算清楚", add:{strategy:2,consistency:2}},
+      {t:"该拼就拼：机会稍纵即逝", add:{risk:2,racecraft:1,pace:1}},
+      {t:"看感觉：那一刻对了就冲", add:{pace:2,risk:1,charisma:1}},
+      {t:"我要让风险变成别人的负担", add:{craft:2,racecraft:1,risk:1}},
+    ]},
+    { q:"如果要提升成绩，你会先练？", a:[
+      {t:"起跑与第一圈判断", add:{racecraft:2,pressure:1,craft:1}},
+      {t:"轮胎管理（长距离节奏）", add:{consistency:3,strategy:1}},
+      {t:"排位一圈：刹车点/出弯牵引", add:{pace:3,craft:1}},
+      {t:"沟通与策略：让团队更懂你", add:{strategy:3,charisma:1}},
+    ]},
+    { q:"你更喜欢怎样的“赢法”？", a:[
+      {t:"全程掌控：对手看不到机会", add:{consistency:2,pressure:1,pace:1}},
+      {t:"最后几圈反杀：一击致命", add:{pressure:2,racecraft:1,craft:1}},
+      {t:"策略制胜：用脑子赢", add:{strategy:3,consistency:1}},
+      {t:"硬刚赢下来：轮对轮把他吃掉", add:{racecraft:3,risk:1}},
+    ]},
+    { q:"赛道环境变糟（雨/低抓地），你会？", a:[
+      {t:"更谨慎：先保证不犯错", add:{consistency:2,strategy:1}},
+      {t:"更兴奋：这是我拉开差距的时刻", add:{craft:2,pressure:1,risk:1}},
+      {t:"更依赖感觉：找到抓地边界", add:{craft:2,pace:1}},
+      {t:"更依赖信息：根据数据调整驾驶", add:{strategy:2,consistency:1,pressure:1}},
+    ]},
+    { q:"最后一题：你更想被别人怎么评价？", a:[
+      {t:"“他真的太快了”", add:{pace:3}},
+      {t:"“他总能赢在关键时刻”", add:{pressure:3,consistency:1}},
+      {t:"“他永远有办法”", add:{craft:2,strategy:2}},
+      {t:"“他又强又有气场”", add:{charisma:3,racecraft:1}},
+    ]},
+  ];
+
+  // ===== DOM =====
+  const status = document.getElementById('status');
+  const title = document.getElementById('title');
+  const subtitle = document.getElementById('subtitle');
+  const quizArea = document.getElementById('quizArea');
+  const bar = document.getElementById('bar');
+  const progress = document.getElementById('progress');
+  const startBtn = document.getElementById('startBtn');
+  const restartBtn = document.getElementById('restartBtn');
+  const shareBtn = document.getElementById('shareBtn');
+
+  // ===== State =====
+  const scores = Object.fromEntries(allDrivers.map(d => [d.id, 0]));
+  let idx = -1;
+  let finished = false;
+
+  function reset() {
+    for (const k in scores) scores[k]=0;
+    idx = -1;
+    finished = false;
+    quizArea.innerHTML = "";
+    title.textContent = "点击开始，测测你的“车手气质” 🏁";
+    subtitle.textContent = "一共 10 题，选你最像的反应。结果仅供娱乐。";
+    status.textContent = "未开始";
+    bar.style.width = "0%";
+    progress.textContent = `0/${questions.length}`;
+    startBtn.style.display = "";
+    restartBtn.style.display = "none";
+    shareBtn.style.display = "none";
+  }
+
+  function start() {
+    if (finished) return;
+    if (idx === -1) idx = 0;
+    status.textContent = "答题中";
+    startBtn.style.display = "none";
+    renderQuestion();
+  }
+
+  function renderQuestion() {
+    const q = questions[idx];
+    title.textContent = "Q" + (idx+1) + " / " + questions.length;
+    subtitle.textContent = q.q;
+
+    const pct = Math.round((idx / questions.length) * 100);
+    bar.style.width = pct + "%";
+    progress.textContent = `${idx}/${questions.length}`;
+
+    quizArea.innerHTML = "";
+    const box = document.createElement('div');
+    box.className = "answers";
+
+    q.a.forEach((opt, i) => {
+      const btn = document.createElement('button');
+      btn.className = "opt";
+      btn.innerHTML = `<b>${i+1}.</b> ${opt.t}`;
+      btn.addEventListener('click', () => choose(i));
+      box.appendChild(btn);
+    });
+
+    quizArea.appendChild(box);
+  }
+
+  function addTraitScore(add) {
+    // 根据选项 trait 增量，给每个车手按 profile 加权计分
+    for (const d of allDrivers) {
+      const p = P[d.id];
+      if (!p) continue;
+      let inc = 0;
+      for (const [trait, v] of Object.entries(add)) {
+        inc += (p[trait] || 0) * v;
+      }
+      scores[d.id] += inc;
+    }
+  }
+
+  function choose(i) {
+    const q = questions[idx];
+    const opt = q.a[i];
+    addTraitScore(opt.add);
+
+    idx++;
+    if (idx >= questions.length) finish();
+    else renderQuestion();
+  }
+
+  function finish() {
+    finished = true;
+    status.textContent = "已完成";
+    bar.style.width = "100%";
+    progress.textContent = `${questions.length}/${questions.length}`;
+
+    const sorted = allDrivers
+      .map(d => ({...d, s:scores[d.id]}))
+      .sort((a,b)=>b.s-a.s);
+
+    const top = sorted[0];
+    const top2 = sorted[1];
+    const top3 = sorted[2];
+
+    title.textContent = "你的结果：";
+    subtitle.textContent = `你最像：${top.name}`;
+
+    quizArea.innerHTML = `
+      <div class="resultCard">
+        <div class="badge">${top.emoji || "🏁"}</div>
+        <div>
+          <p class="rtitle">${top.name}</p>
+          <p class="rdesc">${top.desc || "你属于很有特点的车手类型：有自己的节奏和打法。"} </p>
+          <div class="tags">
+            ${(top.tags || []).map(t=>`<span class="tag">${t}</span>`).join("")}
+          </div>
+          <div class="mini">Top3：${top.name.split(" ")[0]} / ${top2.name.split(" ")[0]} / ${top3.name.split(" ")[0]}</div>
+        </div>
+      </div>
+    `;
+
+    const shareText =
+      `🏁 我测出来更像「${top.name}」！\nTop3：${top.name.split(" ")[0]} / ${top2.name.split(" ")[0]} / ${top3.name.split(" ")[0]}\n来测测你是哪位车手：${location.href}`;
+    shareBtn.dataset.share = shareText;
+
+    restartBtn.style.display = "";
+    shareBtn.style.display = "";
+  }
+
+  // 快捷键 1-4
+  window.addEventListener('keydown', (e) => {
+    if (idx < 0 || finished) {
+      if (e.code === "Space") start();
+      return;
+    }
+    const n = Number(e.key);
+    if (n>=1 && n<=4) choose(n-1);
+  });
+
+  startBtn.addEventListener('click', start);
+  restartBtn.addEventListener('click', reset);
+  shareBtn.addEventListener('click', async () => {
+    const text = shareBtn.dataset.share || "";
+    try {
+      if (navigator.share) {
+        await navigator.share({ text, title: "测测你是哪位 F1 车手（37人版）" });
+      } else {
+        await navigator.clipboard.writeText(text);
+        shareBtn.textContent = "已复制 ✅";
+        setTimeout(()=>shareBtn.textContent="复制结果文案", 1200);
+      }
+    } catch {
+      try {
+        await navigator.clipboard.writeText(text);
+        shareBtn.textContent = "已复制 ✅";
+        setTimeout(()=>shareBtn.textContent="复制结果文案", 1200);
+      } catch {}
+    }
+  });
+
+  reset();
+})();
+</script>
+</body>
+</html>
