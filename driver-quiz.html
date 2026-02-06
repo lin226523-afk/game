@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>测测你是哪位 F1 车手</title>
+  <style>
+    :root{
+      --bg:#070b18; --fg:#eaf0ff; --muted:rgba(255,255,255,.72);
+      --card:rgba(255,255,255,.06); --bd:rgba(255,255,255,.16);
+      --a:#ff3b3b; --b:#38bdf8; --c:#a78bfa; --ok:#34d399;
+    }
+    html,body{height:100%;margin:0}
+    body{
+      display:flex;align-items:center;justify-content:center;
+      background: radial-gradient(900px 520px at 50% 0%, #1b2450 0%, var(--bg) 60%);
+      color:var(--fg);
+      font-family: ui-sans-serif,system-ui,-apple-system,"Segoe UI",Arial;
+      padding:18px;
+    }
+    .wrap{width:min(920px, 96vw)}
+    .top{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:12px}
+    .brand{
+      display:flex;gap:10px;align-items:center;font-weight:900;letter-spacing:.2px
+    }
+    .dot{width:10px;height:10px;border-radius:999px;background:linear-gradient(90deg,var(--a),var(--b))}
+    .pill{
+      border:1px solid var(--bd); background:var(--card);
+      padding:8px 10px;border-radius:999px;font-size:14px;
+      backdrop-filter: blur(8px);
+    }
+    .grid{
+      display:grid;grid-template-columns: 1.05fr .95fr; gap:14px;
+    }
+    @media (max-width: 860px){ .grid{grid-template-columns:1fr} }
+    .panel{
+      border:1px solid var(--bd); background:var(--card);
+      border-radius:16px; padding:14px;
+      box-shadow:0 18px 55px rgba(0,0,0,.45);
+    }
+    h1{font-size:20px;margin:0 0 6px 0}
+    .sub{color:var(--muted);font-size:14px;line-height:1.6;margin:0 0 12px 0}
+    .qhead{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px}
+    .qnum{font-weight:800}
+    .bar{
+      height:10px;border-radius:999px;background:rgba(255,255,255,.10);
+      border:1px solid rgba(255,255,255,.12); overflow:hidden; margin:10px 0 2px;
+    }
+    .bar > div{height:100%;width:0%;background:linear-gradient(90deg,var(--b),var(--c))}
+    .small{font-size:12px;color:var(--muted)}
+    .answers{display:grid;gap:10px;margin-top:12px}
+    button.opt{
+      text-align:left; width:100%;
+      border:1px solid rgba(255,255,255,.18);
+      background:rgba(255,255,255,.05);
+      color:var(--fg); padding:12px 12px;border-radius:12px;
+      cursor:pointer; font-weight:650; line-height:1.3;
+      transition: transform .05s ease, background .12s ease, border-color .12s ease;
+      touch-action: manipulation;
+    }
+    button.opt:hover{background:rgba(56,189,248,.10); border-color:rgba(56,189,248,.35)}
+    button.opt:active{transform:scale(.99)}
+    .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+    button.action{
+      border:1px solid rgba(255,255,255,.20);
+      background:rgba(56,189,248,.14);
+      color:var(--fg); padding:10px 12px;border-radius:12px;
+      cursor:pointer;font-weight:800
+    }
+    button.action.secondary{
+      background:rgba(255,255,255,.06);
+    }
+    .resultCard{
+      display:flex;gap:12px;align-items:flex-start;
+      border:1px solid rgba(255,255,255,.18);
+      background:rgba(0,0,0,.18);
+      border-radius:14px;padding:12px;margin-top:12px;
+    }
+    .badge{
+      min-width:62px;height:62px;border-radius:16px;
+      background:linear-gradient(135deg,rgba(255,59,59,.95),rgba(56,189,248,.75));
+      display:flex;align-items:center;justify-content:center;
+      font-size:26px;font-weight:1000;
+      box-shadow:0 10px 22px rgba(0,0,0,.35);
+    }
+    .rtitle{font-size:18px;font-weight:950;margin:0}
+    .rdesc{margin:6px 0 0 0;color:var(--muted);line-height:1.55}
+    .tags{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+    .tag{font-size:12px;padding:5px 8px;border-radius:999px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.06)}
+    .mini{
+      margin-top:10px;color:var(--muted);font-size:13px;line-height:1.55
+    }
+    .leader{
+      display:grid;gap:10px;margin-top:8px
+    }
+    .scoreRow{
+      display:flex;justify-content:space-between;gap:10px;align-items:center;
+      padding:10px 10px;border-radius:12px;background:rgba(255,255,255,.04);
+      border:1px solid rgba(255,255,255,.10)
+    }
+    .name{font-weight:900}
+    .meter{
+      width:42%;min-width:160px;height:10px;border-radius:999px;background:rgba(255,255,255,.10);
+      overflow:hidden;border:1px solid rgba(255,255,255,.12)
+    }
+    .meter>div{height:100%;width:0%}
+    .foot{margin-top:10px;font-size:12px;color:rgba(255,255,255,.55)}
+    .kbd{padding:1px 6px;border-radius:6px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08)}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <div class="brand"><span class="dot"></span>F1 小游戏：测测你是哪位车手</div>
+      <div class="pill" id="status">未开始</div>
+    </div>
+
+    <div class="grid">
+      <div class="panel">
+        <h1 id="title">点击开始，测测你的“车手气质” 🏁</h1>
+        <p class="sub" id="subtitle">一共 8 题，选你最像的反应。结果只是娱乐向~</p>
+
+        <div class="bar" aria-label="进度条"><div id="bar"></div></div>
+        <div class="small"><span id="progress">0/8</span></div>
+
+        <div id="quizArea" style="margin-top:10px"></div>
+
+        <div class="row">
+          <button class="action" id="startBtn">开始测试</button>
+          <button class="action secondary" id="restartBtn" style="display:none">再测一次</button>
+          <button class="action secondary" id="shareBtn" style="display:none">复制结果文案</button>
+        </div>
+
+        <div class="foot">操作提示：电脑可用 <span class="kbd">1-4</span> 快选答案。</div>
+      </div>
+
+      <div class="panel">
+        <h1>实时倾向</h1>
+        <p class="sub">你每次选择都会给不同“车手类型”加分。这里会实时显示当前前 4 名。</p>
+        <div class="leader" id="leader"></div>
+        <div class="mini" id="miniTip">提示：如果你更想测某位车手（比如“更像勒克莱尔还是诺里斯”），我也能做成对比版。</div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  // 车手“类型”（用风格/性格映射到一些知名车手的公众印象；娱乐向）
+  const drivers = [
+    { id:"ver", name:"维斯塔潘 Max", emoji:"🦁", tags:["极致进攻","冷静计算","胜负欲爆表"], color:"linear-gradient(135deg,#ff3b3b,#f97316)",
+      desc:"你属于“想赢就现在赢”的类型：出手果断、判断快、抗压强，目标感特别清晰。"},
+    { id:"ham", name:"汉密尔顿 Lewis", emoji:"👑", tags:["大局观","稳定输出","关键圈爆发"], color:"linear-gradient(135deg,#38bdf8,#a78bfa)",
+      desc:"你是“关键时刻更强”的类型：节奏稳、策略强，越到重要节点越能拉满表现。"},
+    { id:"alo", name:"阿隆索 Fernando", emoji:"🦊", tags:["老辣阅读","战术大师","抓机会"], color:"linear-gradient(135deg,#22c55e,#38bdf8)",
+      desc:"你擅长读局：懂得在复杂局面里找突破口，用最小代价换最大收益。"},
+    { id:"lec", name:"勒克莱尔 Charles", emoji:"🧊", tags:["天赋速度","完美主义","追求极限圈"], color:"linear-gradient(135deg,#ef4444,#38bdf8)",
+      desc:"你像“天赋型选手”：冲刺时很锋利，追求漂亮的一击，但也会对自己要求很严。"},
+    { id:"nor", name:"诺里斯 Lando", emoji:"😄", tags:["快乐但狠","反应快","团队氛围王"], color:"linear-gradient(135deg,#f59e0b,#38bdf8)",
+      desc:"你是“开朗狠角色”：表面轻松，真上强度时一点不含糊，节奏变化也很灵活。"},
+    { id:"sai", name:"塞恩斯 Carlos", emoji:"🧠", tags:["策略控","稳中求胜","执行力"], color:"linear-gradient(135deg,#fb7185,#a78bfa)",
+      desc:"你属于“会做题的车手”：擅长规划和执行，靠聪明的选择把胜率一点点堆起来。"},
+  ];
+
+  // 题目：每个选项给不同 driver 加分
+  const questions = [
+    {
+      q:"起跑灯灭的一瞬间，你更像哪种？",
+      a:[
+        { t:"先稳住避免意外，再找机会", w:{ham:2, sai:2, alo:1} },
+        { t:"直接抢内线，成败在此一举", w:{ver:3, lec:1} },
+        { t:"观察两侧动向，找空档一口气穿过去", w:{alo:2, nor:2} },
+        { t:"第一弯就是我的舞台，极限刹车", w:{lec:3, ver:1} },
+      ]
+    },
+    {
+      q:"遇到慢车挡路，你会怎么做？",
+      a:[
+        { t:"耐心等他失误，一击致命", w:{alo:3, ham:1} },
+        { t:"逼迫他防守，制造破绽", w:{ver:2, nor:2} },
+        { t:"用更优路线/更好出弯速度完成超越", w:{sai:3, ham:1} },
+        { t:"我能在一个弯里完成超车", w:{lec:2, ver:2} },
+      ]
+    },
+    {
+      q:"团队告诉你：策略有两套，你更偏向？",
+      a:[
+        { t:"保守但稳：先拿到确定性积分", w:{ham:2, sai:3} },
+        { t:"激进：赌一次安全车/雨来", w:{alo:3, ver:1} },
+        { t:"看数据：轮胎、风向、对手节奏再决定", w:{sai:2, ham:2, alo:1} },
+        { t:"我想要清晰的 Plan A：冲刺到最前", w:{ver:2, lec:2} },
+      ]
+    },
+    {
+      q:"你更擅长哪种赛段？",
+      a:[
+        { t:"长距离稳定输出，节奏像钟表", w:{ham:3, sai:2} },
+        { t:"对抗：轮对轮我不怕", w:{ver:3, alo:2} },
+        { t:"排位：一圈决定一切", w:{lec:3, nor:1} },
+        { t:"混乱局：雨战/安全车我更兴奋", w:{alo:3, nor:2} },
+      ]
+    },
+    {
+      q:"压力来临时，你的反应更像？",
+      a:[
+        { t:"越紧张越清晰：把每个步骤做对", w:{sai:3, ham:2} },
+        { t:"我会更凶：要么赢要么不留遗憾", w:{ver:3, lec:1} },
+        { t:"心态放松，用幽默把自己拉回状态", w:{nor:3, ham:1} },
+        { t:"读局：先搞清楚对手想干嘛", w:{alo:3, sai:1} },
+      ]
+    },
+    {
+      q:"你对“风险”的态度更像？",
+      a:[
+        { t:"风险可控才冒：先算清楚", w:{sai:3, ham:2} },
+        { t:"该拼就拼：机会稍纵即逝", w:{ver:3, alo:1} },
+        { t:"看感觉：那一刻对了就冲", w:{lec:3, nor:1} },
+        { t:"我要让风险变成别人的负担", w:{alo:2, nor:2, ver:1} },
+      ]
+    },
+    {
+      q:"如果你要提升成绩，你会先练？",
+      a:[
+        { t:"起跑与第一圈判断", w:{ver:2, alo:2, nor:1} },
+        { t:"轮胎管理（长距离节奏）", w:{ham:3, sai:2} },
+        { t:"排位一圈：刹车点/出弯牵引", w:{lec:3, ver:1} },
+        { t:"沟通与策略：让团队更懂你", w:{sai:3, nor:1, ham:1} },
+      ]
+    },
+    {
+      q:"最后一题：你更想被别人怎么评价？",
+      a:[
+        { t:"“他真的太快了”", w:{lec:3, ver:2} },
+        { t:"“他总能赢在关键时刻”", w:{ham:3, ver:1} },
+        { t:"“他永远有办法”", w:{alo:3, sai:1} },
+        { t:"“他又强又好相处”", w:{nor:3, ham:1} },
+      ]
+    },
+  ];
+
+  // DOM
+  const status = document.getElementById('status');
+  const title = document.getElementById('title');
+  const subtitle = document.getElementById('subtitle');
+  const quizArea = document.getElementById('quizArea');
+  const bar = document.getElementById('bar');
+  const progress = document.getElementById('progress');
+  const leader = document.getElementById('leader');
+  const startBtn = document.getElementById('startBtn');
+  const restartBtn = document.getElementById('restartBtn');
+  const shareBtn = document.getElementById('shareBtn');
+
+  // State
+  const scores = Object.fromEntries(drivers.map(d => [d.id, 0]));
+  let idx = -1;
+  let finished = false;
+
+  function reset() {
+    for (const k in scores) scores[k]=0;
+    idx = -1;
+    finished = false;
+    quizArea.innerHTML = "";
+    title.textContent = "点击开始，测测你的“车手气质” 🏁";
+    subtitle.textContent = "一共 8 题，选你最像的反应。结果只是娱乐向~";
+    status.textContent = "未开始";
+    bar.style.width = "0%";
+    progress.textContent = `0/${questions.length}`;
+    startBtn.style.display = "";
+    restartBtn.style.display = "none";
+    shareBtn.style.display = "none";
+    renderLeader();
+  }
+
+  function start() {
+    if (finished) return;
+    if (idx === -1) idx = 0;
+    status.textContent = "答题中";
+    startBtn.style.display = "none";
+    renderQuestion();
+    renderLeader();
+  }
+
+  function renderQuestion() {
+    const q = questions[idx];
+    title.textContent = "Q" + (idx+1) + " / " + questions.length;
+    subtitle.textContent = q.q;
+
+    const pct = Math.round((idx / questions.length) * 100);
+    bar.style.width = pct + "%";
+    progress.textContent = `${idx}/${questions.length}`;
+
+    quizArea.innerHTML = "";
+    const box = document.createElement('div');
+    box.className = "answers";
+
+    q.a.forEach((opt, i) => {
+      const btn = document.createElement('button');
+      btn.className = "opt";
+      btn.innerHTML = `<b>${i+1}.</b> ${opt.t}`;
+      btn.addEventListener('click', () => choose(i));
+      box.appendChild(btn);
+    });
+
+    quizArea.appendChild(box);
+  }
+
+  function choose(i) {
+    const q = questions[idx];
+    const opt = q.a[i];
+    // 加分
+    for (const [k,v] of Object.entries(opt.w)) {
+      if (scores[k] != null) scores[k] += v;
+    }
+    // 小奖励：每答一题给所有人 +0（占位以后可扩展）
+    idx++;
+    if (idx >= questions.length) {
+      finish();
+    } else {
+      renderQuestion();
+      renderLeader();
+    }
+  }
+
+  function finish() {
+    finished = true;
+    status.textContent = "已完成";
+    bar.style.width = "100%";
+    progress.textContent = `${questions.length}/${questions.length}`;
+
+    // 排序
+    const sorted = drivers
+      .map(d => ({...d, s:scores[d.id]}))
+      .sort((a,b)=>b.s-a.s);
+
+    const top = sorted[0];
+    const second = sorted[1];
+
+    title.textContent = "你的结果：";
+    subtitle.textContent = `你最像：${top.name}（领先第二名 ${top.s - second.s} 分）`;
+
+    quizArea.innerHTML = `
+      <div class="resultCard">
+        <div class="badge" style="background:${top.color}">${top.emoji}</div>
+        <div>
+          <p class="rtitle">${top.name}</p>
+          <p class="rdesc">${top.desc}</p>
+          <div class="tags">
+            ${top.tags.map(t=>`<span class="tag">${t}</span>`).join("")}
+          </div>
+          <div class="mini">小建议：用你的优势（${top.tags[0]}）去打关键局，会很容易出效果。</div>
+        </div>
+      </div>
+    `;
+
+    // 分享文案
+    const shareText = `🏁 我测出来更像「${top.name}」！\n标签：${top.tags.join(" / ")}\n来测测你是哪位车手：${location.href}`;
+    shareBtn.dataset.share = shareText;
+    restartBtn.style.display = "";
+    shareBtn.style.display = "";
+
+    renderLeader(sorted);
+  }
+
+  function renderLeader(sortedOverride) {
+    const sorted = sortedOverride || drivers
+      .map(d => ({...d, s:scores[d.id]}))
+      .sort((a,b)=>b.s-a.s)
+      .slice(0,4);
+
+    leader.innerHTML = "";
+    sorted.forEach((d, i) => {
+      const row = document.createElement('div');
+      row.className = "scoreRow";
+      const max = Math.max(1, sorted[0].s);
+      const pct = Math.round((d.s / max) * 100);
+      row.innerHTML = `
+        <div style="display:flex;gap:10px;align-items:center;min-width:180px">
+          <div style="font-size:18px">${d.emoji}</div>
+          <div>
+            <div class="name">${i+1}. ${d.name}</div>
+            <div class="small">${d.s} 分</div>
+          </div>
+        </div>
+        <div class="meter"><div style="width:${pct}%;background:linear-gradient(90deg,var(--b),var(--c))"></div></div>
+      `;
+      leader.appendChild(row);
+    });
+  }
+
+  // 快捷键 1-4 选项
+  window.addEventListener('keydown', (e) => {
+    if (idx < 0 || finished) {
+      if (e.code === "Space") start();
+      return;
+    }
+    const n = Number(e.key);
+    if (n>=1 && n<=4) choose(n-1);
+  });
+
+  // 按钮
+  startBtn.addEventListener('click', start);
+  restartBtn.addEventListener('click', reset);
+  shareBtn.addEventListener('click', async () => {
+    const text = shareBtn.dataset.share || "";
+    try {
+      if (navigator.share) {
+        await navigator.share({ text, title: "测测你是哪位 F1 车手" });
+      } else {
+        await navigator.clipboard.writeText(text);
+        shareBtn.textContent = "已复制 ✅";
+        setTimeout(()=>shareBtn.textContent="复制结果文案", 1200);
+      }
+    } catch {
+      // 兜底复制
+      try {
+        await navigator.clipboard.writeText(text);
+        shareBtn.textContent = "已复制 ✅";
+        setTimeout(()=>shareBtn.textContent="复制结果文案", 1200);
+      } catch {}
+    }
+  });
+
+  reset();
+})();
+</script>
+</body>
+</html>
